@@ -6,7 +6,6 @@ import ffmpeg
 from bs4 import BeautifulSoup
 import os
 
-import random
 
 app = Flask(__name__)
 
@@ -52,16 +51,6 @@ def get_redgifs_video(url):
     return video_url
 
 
-def download_video(video_url, save_path):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(video_url, headers=headers, stream=True)
-    if response.status_code == 200:
-        with open(save_path, "wb") as file:
-            for chunk in response.iter_content(chunk_size=1024):
-                file.write(chunk)
-        return save_path
-    return None
-
 
 
 
@@ -92,7 +81,15 @@ def download_twitter_video(video_url, save_path, cookies_file="twitter_cookies.t
 
 
 
-
+def download_video(video_url, save_path):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(video_url, headers=headers, stream=True)
+    if response.status_code == 200:
+        with open(save_path, "wb") as file:
+            for chunk in response.iter_content(chunk_size=1024):
+                file.write(chunk)
+        return save_path
+    return None
 
 
 def compress_video(input_path, output_path):
@@ -182,7 +179,7 @@ def upload_to_server(username, title, video_path, thumbnail_path):
 
 import threading
 
-def process_video(url, video_title, mothel):
+def process_video(url, video_title):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
         "Referer": "https://www.redgifs.com/",
@@ -191,54 +188,35 @@ def process_video(url, video_title, mothel):
     }
 
     try:
-        if "redgifs.com" in url:
-            response = session.get(url, headers=headers)
-            response.raise_for_status()
+        response = session.get(url, headers=headers)
+        response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            title_tag = soup.find("title").text
-            model_username = title_tag.split(" ")[-1]
+        soup = BeautifulSoup(response.text, 'html.parser')
+        title_tag = soup.find("title").text
+        model_username = title_tag.split(" ")[-1]
 
-            sanitized_title = sanitize_filename(video_title)
-            video_filename = f"{sanitized_title}.mp4"
-            compressed_filename = f"{sanitized_title}_compressed.mp4"
-            thumbnail_filename = f"{sanitized_title}.jpg"
-        else:
-            model_username = mothel
-            video_filename = f"{model_username}-nude-leaked-xxx-{random.randint(0000,99999)}.mp4"
-            compressed_filename = f"{model_username}_compressed-xxx-{random.randint(0000,99999)}.mp4"
-            thumbnail_filename = f"{model_username}-nude-leaks-xxx-{random.randint(0000,99999)}.jpg"
+        sanitized_title = sanitize_filename(video_title)
+        video_filename = f"{sanitized_title}.mp4"
+        compressed_filename = f"{sanitized_title}_compressed.mp4"
+        thumbnail_filename = f"{sanitized_title}.jpg"
 
         if not check_or_create_profile(model_username, creator_url=f"https://www.redgifs.com/users/{model_username}"):
             print("Failed to create or check profile")
             return
-        video_url = get_redgifs_video(url) if "redgifs.com" in url else None
 
-        if not video_url:
-            downloaded_video = download_twitter_video(url, video_filename)
-        else:
+        video_url = get_redgifs_video(url)
+        if video_url:
             downloaded_video = download_video(video_url, video_filename)
-
-        if not downloaded_video:
-            print("[ERROR] Failed to download video.")
-            exit()
-
-        compressed_video = compress_video(downloaded_video, compressed_filename)
-        if not compressed_video:
-            print("[ERROR] Failed to compress video.")
-            exit()
-
-        generate_thumbnail(compressed_video, thumbnail_filename)
-        watermarked_video = add_watermark(compressed_video, compressed_filename)
-        if not watermarked_video:
-            print("[ERROR] Failed to add watermark.")
-            exit()
-
-        success = upload_to_server(model_username, video_title, watermarked_video, thumbnail_filename)
-        if success:
-            print(f"[DONE] Video '{video_title}' uploaded successfully.")
-        else:
-            print("[ERROR] Failed to upload video.")
+            if downloaded_video:
+                compressed_video = compress_video(downloaded_video, compressed_filename)
+                generate_thumbnail(compressed_video, thumbnail_filename)
+                watermarked_video = add_watermark(compressed_video, compressed_filename)
+                if watermarked_video:
+                    success = upload_to_server(model_username, video_title, watermarked_video, thumbnail_filename)
+                    if success:
+                        print(f"[DONE] Video '{video_title}' uploaded successfully.")
+                    else:
+                        print("[ERROR] Failed to upload video.")
     except Exception as e:
         print("[ERROR] Exception occurred:", e)
 
@@ -247,9 +225,9 @@ def index():
     if request.method == "POST":
         url = request.form["url"]
         video_title = request.form["video_title"]
-        mothel = request.form["model_username"]
-   
-        thread = threading.Thread(target=process_video, args=(url, video_title, mothel))
+
+        # Start background thread
+        thread = threading.Thread(target=process_video, args=(url, video_title))
         thread.start()
 
         return "Video processing started in background. You'll see it uploaded shortly.", 202
