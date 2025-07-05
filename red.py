@@ -90,6 +90,21 @@ def download_twitter_video(video_url, save_path, cookies_file="twitter_cookies.t
         return None
 
 
+def get_rm_video_link(url):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return None
+    soup = BeautifulSoup(response.text, "html.parser")
+    script_tag = soup.find("script", {"id": "__NEXT_DATA__"})
+    if not script_tag:
+        return None
+    try:
+        data = json.loads(script_tag.string)
+        video_link = data["props"]["pageProps"]["videoData"]["link"]
+        return f"https://imgs.reelsmunkey.com/{video_link}"
+    except (KeyError, json.JSONDecodeError):
+        return None
 
 
 
@@ -203,6 +218,11 @@ def process_video(url, video_title, mothel):
             video_filename = f"{sanitized_title}.mp4"
             compressed_filename = f"{sanitized_title}_compressed.mp4"
             thumbnail_filename = f"{sanitized_title}.jpg"
+        if "reelsmonkey.com" in url:
+            model_username = mothel
+            video_filename = f"{model_username}-nude-leaked-xxx-{random.randint(0000,99999)}.mp4"
+            compressed_filename = f"{model_username}_compressed-xxx-{random.randint(0000,99999)}.mp4"
+            thumbnail_filename = f"{model_username}-nude-leaks-xxx-{random.randint(0000,99999)}.jpg" 
         else:
             model_username = mothel
             video_filename = f"{model_username}-nude-leaked-xxx-{random.randint(0000,99999)}.mp4"
@@ -212,7 +232,13 @@ def process_video(url, video_title, mothel):
         if not check_or_create_profile(model_username, creator_url=f"https://www.redgifs.com/users/{model_username}"):
             print("Failed to create or check profile")
             return
-        video_url = get_redgifs_video(url) if "redgifs.com" in url else None
+        if "redgifs.com" in url:
+            video_url = get_redgifs_video(url)
+        elif "reelsmonkey.com" in url:
+            video_url = get_rm_video_link(url)
+        else:
+            video_url = None
+
 
         if not video_url:
             downloaded_video = download_twitter_video(url, video_filename)
